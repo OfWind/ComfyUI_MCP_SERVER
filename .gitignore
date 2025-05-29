@@ -11,4 +11,4 @@ mcp_server/__pycache__/
 /object_info/
 .venv/
 .python-version
-uv.lock
+workflows/
