@@ -10,8 +10,8 @@ from mcp_server.logger import default_logger
 
 def _load_default_values():
     """
-    从txt2img_api.json中加载默认值
-    Load default values from txt2img_api.json
+    从txt2bg_api.json中加载默认值
+    Load default values from txt2bg_api.json
     
     返回:
         dict: 包含默认值的字典
@@ -20,8 +20,8 @@ def _load_default_values():
         dict: Dictionary containing default values
     """
     try:
-        # 获取txt2img_api.json文件路径
-        api_json_path = os.path.join(os.path.dirname(__file__), 'txt2img_api.json')
+        # 获取txt2bg_api.json文件路径
+        api_json_path = os.path.join(os.path.dirname(__file__), 'txt2bg_api.json')
         
         with open(api_json_path, 'r', encoding='utf-8') as f:
             api_json = json.load(f)
@@ -67,8 +67,8 @@ def _load_default_values():
 # 加载默认值
 DEFAULT_VALUES = _load_default_values()
 
-def register_txt2img_tool(mcp):
-    async def comfyui_txt2img_impl(
+def register_txt2bg_tool(mcp):
+    async def comfyui_txt2bg_impl(
             prompt: str, 
             pic_width: str, 
             pic_height: str, 
@@ -85,7 +85,7 @@ def register_txt2img_tool(mcp):
         default_logger.debug(f"开始处理文生图请求: prompt='{prompt[:50]}...'")
         
         comfyui_host = load_config()
-        prompt_template = load_prompt_template('txt2img')
+        prompt_template = load_prompt_template('txt2bg')
         # seed 处理 | seed processing
         randomize_all_seeds(prompt_template)
         # 正向prompt | positive prompt
@@ -158,7 +158,7 @@ def register_txt2img_tool(mcp):
                             if os.path.isdir(save_dir):
                                 base_output_dir = save_dir
                                 # 如果指定了目录，但未指定文件名，则生成带时间戳的文件名
-                                base_filename_prefix = filename if filename else f"txt2img_{int(time.time())}"
+                                base_filename_prefix = filename if filename else f"txt2bg_{int(time.time())}"
                             else: # save_dir 是一个文件路径
                                 base_output_dir = os.path.dirname(save_dir)
                                 # 如果 save_dir 是文件路径，则 filename 参数被忽略，使用 save_dir 的文件名部分
@@ -167,7 +167,7 @@ def register_txt2img_tool(mcp):
                                     base_output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'output')
                         else: # save_dir 未指定
                             base_output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'output')
-                            base_filename_prefix = filename if filename else f"txt2img_{int(time.time())}"
+                            base_filename_prefix = filename if filename else f"txt2bg_{int(time.time())}"
                         
                         os.makedirs(base_output_dir, exist_ok=True)
                         
@@ -220,7 +220,7 @@ def register_txt2img_tool(mcp):
 
     @mcp.tool()
     @log_mcp_call
-    async def txt2img(
+    async def txt2bg(
         prompt: str = DEFAULT_VALUES["prompt"],
         pic_width: str = DEFAULT_VALUES["width"],
         pic_height: str = DEFAULT_VALUES["height"],
@@ -231,17 +231,14 @@ def register_txt2img_tool(mcp):
         filename: str | None = None
     ) -> str:
         """
-        Character and Object Generation Service: Generate characters, people, objects, items, or any subjects WITHOUT backgrounds (transparent or isolated subjects).
-        This tool is specifically designed for creating standalone subjects that can be used as foreground elements.
-        Perfect for: portraits, characters, people, animals, objects, items, products, isolated subjects.
-        NOT suitable for: complete scenes, landscapes, backgrounds, environments.
-        
+        Background and Scene Generation Service: Generate complete scenes, backgrounds, environments, and landscapes.
+        Perfect for creating full backgrounds, natural environments, architectural scenes, fantasy worlds, and complete compositions.
         Images are saved to the 'output' directory in the project root by default.
         Supports custom output image size, negative prompt, batch size, model, save directory, and filename (all optional).
-        All default values are loaded from txt2img_api.json configuration file.
+        All default values are loaded from txt2bg_api.json configuration file.
 
         Args:
-            prompt (str): Positive prompt describing the character/object to generate, must be in English.
+            prompt (str): Positive prompt describing the background/scene, must be in English.
             pic_width (str): Output image width (optional, default from config).
             pic_height (str): Output image height (optional, default from config).
             batch_size (str): Batch size (optional, max 4, default from config).
@@ -249,7 +246,7 @@ def register_txt2img_tool(mcp):
                 If None, images are saved in the default 'output/' directory in the project root.
             filename (str | None): Optional. Desired filename for the image (without extension).
                 - If batch_size is 1 and filename is provided, this filename is used.
-                - If batch_size > 1 and filename is provided, the filename is used as a prefix, followed by an index (e.g., "character_0.png", "character_1.png").
+                - If batch_size > 1 and filename is provided, the filename is used as a prefix, followed by an index (e.g., "myimage_0.png", "myimage_1.png").
                 - If filename is None, a filename is generated based on a timestamp.
                 The file extension is determined from the source image or defaults to '.png'.
 
@@ -263,7 +260,7 @@ def register_txt2img_tool(mcp):
         """
         try:
             default_logger.info(f"接收到文生图请求: prompt='{prompt[:30]}...'，保存路径: {save_dir}, 文件名: {filename}")
-            result = await comfyui_txt2img_impl(
+            result = await comfyui_txt2bg_impl(
                 prompt, 
                 pic_width, 
                 pic_height, 
