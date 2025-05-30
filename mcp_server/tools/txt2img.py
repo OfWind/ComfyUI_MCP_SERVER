@@ -169,7 +169,7 @@ def register_txt2img_tool(mcp):
         Supports custom output image size, negative prompt, batch size, and model (all optional).
         All default values are loaded from txt2img_api.json configuration file.
         Args:
-            prompt: str positive prompt
+            prompt: str positive prompt, it must be English
             pic_width: str output image width (optional, default from config)
             pic_height: str output image height (optional, default from config)
             batch_size: str batch size (optional, max 4, default from config)
