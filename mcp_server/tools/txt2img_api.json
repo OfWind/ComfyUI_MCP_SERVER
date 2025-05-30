@@ -91,7 +91,7 @@
   },
   "25": {
     "inputs": {
-      "noise_seed": 456047460278398
+      "noise_seed": 464134765735592
     },
     "class_type": "RandomNoise"
   },
@@ -144,15 +144,6 @@
       "batch_size": 1
     },
     "class_type": "EmptyLatentImage"
-  },
-  "78": {
-    "inputs": {
-      "images": [
-        "84",
-        0
-      ]
-    },
-    "class_type": "PreviewImage"
   },
   "80": {
     "inputs": {
@@ -233,5 +224,15 @@
       ]
     },
     "class_type": "BiRefNetRMBG"
+  },
+  "85": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "84",
+        0
+      ]
+    },
+    "class_type": "SaveImage"
   }
 }

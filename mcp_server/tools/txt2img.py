@@ -3,6 +3,7 @@ import httpx
 import asyncio
 import json
 import os
+import time  # Added import time here
 from mcp_server.utils import load_config, load_prompt_template, randomize_all_seeds
 from mcp_server.logger_decorator import log_mcp_call
 from mcp_server.logger import default_logger
@@ -73,11 +74,13 @@ def register_txt2img_tool(mcp):
             pic_height: str, 
             # negative_prompt: str, 
             batch_size: str, 
-            # model: str
+            # model: str,
+            save_dir: str | None = None, # Added save_dir parameter
+            filename: str | None = None # Added filename parameter
             ) -> str:
         """
-        实现ComfyUI文生图API调用，返回Markdown图片格式（异步版）
-        支持自定义输出图片宽高、负向提示词、批次、模型。
+        实现ComfyUI文生图API调用，保存图片到本地并返回本地路径的Markdown格式（异步版）
+        支持自定义输出图片宽高、负向提示词、批次、模型和保存路径。
         """
         default_logger.debug(f"开始处理文生图请求: prompt='{prompt[:50]}...'")
         
@@ -87,7 +90,6 @@ def register_txt2img_tool(mcp):
         randomize_all_seeds(prompt_template)
         # 正向prompt | positive prompt
         prompt_template["76"]["inputs"]["prompt1"] = prompt
-
 
         # 负向prompt | negative prompt
         # 新workflow中不一定有负向prompt节点，需判断
@@ -114,6 +116,9 @@ def register_txt2img_tool(mcp):
             "prompt": prompt_template
         }
         
+        local_image_paths = []  # Initialize here
+        images_data = None  # To store images data from API
+
         default_logger.debug(f"开始向ComfyUI发送API请求: {comfyui_host}/api/prompt")
         default_logger.debug(f"请求体内容: {json.dumps(body, ensure_ascii=False, indent=2)}")
         async with httpx.AsyncClient() as client:
@@ -134,25 +139,84 @@ def register_txt2img_tool(mcp):
                     if status["completed"] and status["status_str"] == "success":
                         default_logger.debug(f"ComfyUI任务完成: {status['status_str']}")
                         outputs = data[prompt_id]["outputs"]
-                        images = None
+                        images_data = None
                         for node_id, node_data in outputs.items():
                             if "images" in node_data:
-                                images = node_data["images"]
+                                images_data = node_data["images"]
                                 break
-                        if images is None:
+                        if images_data is None:
                             error_msg = "未找到包含images的输出节点 | No output node with images found"
                             default_logger.error(error_msg)
                             raise Exception(error_msg)
-                        break
+                        
+                        # Image processing and saving moved inside the client context
+                        default_logger.debug(f"生成图片数量: {len(images_data)}")
+                        
+                        # 确定输出目录和基本文件名
+                        # Determine output directory and base filename
+                        if save_dir:
+                            if os.path.isdir(save_dir):
+                                base_output_dir = save_dir
+                                # 如果指定了目录，但未指定文件名，则生成带时间戳的文件名
+                                base_filename_prefix = filename if filename else f"txt2img_{int(time.time())}"
+                            else: # save_dir 是一个文件路径
+                                base_output_dir = os.path.dirname(save_dir)
+                                # 如果 save_dir 是文件路径，则 filename 参数被忽略，使用 save_dir 的文件名部分
+                                base_filename_prefix = os.path.splitext(os.path.basename(save_dir))[0]
+                                if not base_output_dir: # 如果 save_dir 是一个文件名，没有目录
+                                    base_output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'output')
+                        else: # save_dir 未指定
+                            base_output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'output')
+                            base_filename_prefix = filename if filename else f"txt2img_{int(time.time())}"
+                        
+                        os.makedirs(base_output_dir, exist_ok=True)
+                        
+                        # 下载图片到本地
+                        for i, img_meta in enumerate(images_data):
+                            image_url = f"{comfyui_host}/api/view?filename={img_meta['filename']}&subfolder={img_meta['subfolder']}&type=output"
+                            
+                            # 构建本地文件名
+                            filename_parts = img_meta['filename'].split('.')
+                            extension = filename_parts[-1] if len(filename_parts) > 1 else 'png'
+                            
+                            current_filename_prefix = base_filename_prefix
+                            # 特殊处理：如果 save_dir 是一个完整的文件路径且 batch_size 为 1，则直接使用该路径
+                            if save_dir and not os.path.isdir(save_dir) and int(batch_size) == 1:
+                                local_path = save_dir 
+                            else:
+                                # 如果 batch_size > 1，文件名需要添加索引
+                                if int(batch_size) > 1:
+                                    # 如果原始 base_filename_prefix 已经包含了索引（不太可能，但作为防御性编程）
+                                    # 或者用户提供的 filename 已经指定了索引，我们这里统一添加或覆盖索引
+                                    # 简单起见，我们总是基于 current_filename_prefix 添加索引
+                                    final_filename = f"{current_filename_prefix}_{i}.{extension}"
+                                else:
+                                    final_filename = f"{current_filename_prefix}.{extension}"
+                                local_path = os.path.join(base_output_dir, final_filename)
+                            
+
+                            try:
+                                img_resp = await client.get(image_url)
+                                img_resp.raise_for_status()
+                                with open(local_path, 'wb') as f:
+                                    f.write(img_resp.content)
+                                local_image_paths.append(local_path)
+                                default_logger.debug(f"图片已保存到: {local_path}")
+                            except Exception as e:
+                                default_logger.error(f"下载图片失败: {str(e)}")
+                                local_image_paths.append(image_url)  # Fallback to URL
+                        break  # Exit while loop once images are processed
         
-        default_logger.debug(f"生成图片数量: {len(images)}")
+        # This part remains outside the client context, using populated local_image_paths
+        markdown_images = []
+        for path in local_image_paths:
+            if path.startswith('http'):
+                markdown_images.append(f"![image]({path})")
+            else:
+                abs_path = os.path.abspath(path)
+                markdown_images.append(f"![image](file:///{abs_path.replace(os.sep, '/')})")
         
-        image_urls = [
-            f"{comfyui_host}/api/view?filename={img['filename']}&subfolder={img['subfolder']}&type=output"
-            for img in images
-        ]
-        markdown_images = [f"![image]({url})" for url in image_urls]
-        return "\n".join(markdown_images)
+        return "\\n".join(markdown_images)
 
     @mcp.tool()
     @log_mcp_call
@@ -163,31 +227,46 @@ def register_txt2img_tool(mcp):
         # negative_prompt: str = DEFAULT_VALUES["negative_prompt"],
         batch_size: str = DEFAULT_VALUES["batch_size"],
         # model: str = DEFAULT_VALUES["model"]
+        save_dir: str | None = None,
+        filename: str | None = None
     ) -> str:
         """
-        Text-to-image service: input prompt, return image in Markdown format (async version).
-        Supports custom output image size, negative prompt, batch size, and model (all optional).
+        Text-to-image service: input prompt, save images to a specified location or local 'output' directory, and return local paths in Markdown format (async version).
+        Images are saved to the 'output' directory in the project root by default.
+        Supports custom output image size, negative prompt, batch size, model, save directory, and filename (all optional).
         All default values are loaded from txt2img_api.json configuration file.
+
         Args:
-            prompt: str positive prompt, it must be English
-            pic_width: str output image width (optional, default from config)
-            pic_height: str output image height (optional, default from config)
-            batch_size: str batch size (optional, max 4, default from config)
+            prompt (str): Positive prompt, must be in English.
+            pic_width (str): Output image width (optional, default from config).
+            pic_height (str): Output image height (optional, default from config).
+            batch_size (str): Batch size (optional, max 4, default from config).
+            save_dir (str | None): Optional. Path to the directory where the image(s) should be saved.
+                If None, images are saved in the default 'output/' directory in the project root.
+            filename (str | None): Optional. Desired filename for the image (without extension).
+                - If batch_size is 1 and filename is provided, this filename is used.
+                - If batch_size > 1 and filename is provided, the filename is used as a prefix, followed by an index (e.g., "myimage_0.png", "myimage_1.png").
+                - If filename is None, a filename is generated based on a timestamp.
+                The file extension is determined from the source image or defaults to '.png'.
 
         Returns:
-            str image in Markdown format
+            str: Local image paths in Markdown format (file:// URLs).
+
         Raises: 
-            httpx.RequestError: API request failed
-            KeyError: response data format error
-            Exception: other unexpected exception
+            httpx.RequestError: API request failed.
+            KeyError: Response data format error.
+            Exception: Other unexpected exceptions.
         """
         try:
-            default_logger.info(f"接收到文生图请求: prompt='{prompt[:30]}...'")
+            default_logger.info(f"接收到文生图请求: prompt='{prompt[:30]}...'，保存路径: {save_dir}, 文件名: {filename}")
             result = await comfyui_txt2img_impl(
                 prompt, 
                 pic_width, 
                 pic_height, 
-                batch_size)
+                batch_size,
+                save_dir,
+                filename # Pass filename here
+            )
             default_logger.info(f"文生图请求完成: 生成 {batch_size} 张图片")
             return result
         except httpx.RequestError as e:
