@@ -235,8 +235,8 @@ def register_txt2img_tool(mcp):
         This tool is specifically designed for creating standalone subjects that can be used as foreground elements.
         Perfect for: portraits, characters, people, animals, objects, items, products, isolated subjects.
         NOT suitable for: complete scenes, landscapes, backgrounds, environments.
-        
-        Images are saved to the 'output' directory in the project root by default.
+        Images are saved by default to the absolute path of the 'output' directory in the project root
+        (e.g., "D:/project/output").
         Supports custom output image size, negative prompt, batch size, model, save directory, and filename (all optional).
         All default values are loaded from txt2img_api.json configuration file.
 
@@ -245,8 +245,10 @@ def register_txt2img_tool(mcp):
             pic_width (str): Output image width (optional, default from config).
             pic_height (str): Output image height (optional, default from config).
             batch_size (str): Batch size (optional, max 4, default from config).
-            save_dir (str | None): Optional. Path to the directory where the image(s) should be saved.
-                If None, images are saved in the default 'output/' directory in the project root.
+            save_dir (str): Optional. Absolute path to the directory where the image(s) should be saved.
+                Must be an absolute path (e.g. "D:/my_images" or "/home/user/images"), not a relative path.                
+                If None, images are saved in the absolute path of the 'output' directory in the project root
+                (e.g., "D:/project/output").
             filename (str | None): Optional. Desired filename for the image (without extension).
                 - If batch_size is 1 and filename is provided, this filename is used.
                 - If batch_size > 1 and filename is provided, the filename is used as a prefix, followed by an index (e.g., "character_0.png", "character_1.png").
