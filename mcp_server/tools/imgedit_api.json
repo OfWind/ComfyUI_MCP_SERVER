@@ -1,0 +1,71 @@
+{
+  "83": {
+    "inputs": {
+      "prompt": "",
+      "aspect_ratio": "1:1",
+      "guidance": 3.5,
+      "steps": 50,
+      "seed": 717287212296696,
+      "prompt_upsampling": false,
+      "input_image": [
+        "91",
+        0
+      ]
+    },
+    "class_type": "FluxKontextProImageNode",
+    "_meta": {
+      "title": "Flux.1 Kontext [pro] Image"
+    }
+  },
+  "84": {
+    "inputs": {
+      "image": "ComfyUI_00011_.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "加载图像"
+    }
+  },
+  "91": {
+    "inputs": {
+      "direction": "right",
+      "match_image_size": true,
+      "spacing_width": 8,
+      "spacing_color": "white",
+      "image1": [
+        "84",
+        0
+      ],
+      "image2": [
+        "102",
+        0
+      ]
+    },
+    "class_type": "ImageStitch",
+    "_meta": {
+      "title": "Image Stitch"
+    }
+  },
+  "102": {
+    "inputs": {
+      "image": "01_bg_0_classroom_morning_v1.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "加载图像"
+    }
+  },
+  "103": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "83",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "保存图像"
+    }
+  }
+}
